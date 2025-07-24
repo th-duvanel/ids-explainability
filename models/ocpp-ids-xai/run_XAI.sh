@@ -5,6 +5,8 @@
 
 # Make sure the unified client script is named 'client_xai.py'
 
+export TF_CPP_MIN_LOG_LEVEL=1
+
 echo "--- dataset 1: ocppflowmeter Dataset (SHAP + LIME) ---"
 
 # Start the server for the first dataset in the background

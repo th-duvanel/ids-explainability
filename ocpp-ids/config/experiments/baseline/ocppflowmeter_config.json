@@ -1,0 +1,12 @@
+{
+    "client_id": 2,
+    "type": "baseline",
+    "dataset_path": "data/ocppflowmeter",
+    "saved_model_path": "results/ocppflowmeter/baseline",
+    "shap_output_path": "results/ocppflowmeter/baseline/shap",
+    "lime_output_path": "results/ocppflowmeter/baseline/lime",
+    "results_output_path": "results/ocppflowmeter/baseline",
+    "server_address": "127.0.0.1:8080",
+    "learning_rate": 0.002,
+    "features_to_drop": ["flow_id","src_ip","dst_ip","src_port", "dst_port", "label"]
+}

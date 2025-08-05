@@ -82,6 +82,8 @@ def main():
     # Server's strategy
     strategy = fl.server.strategy.FedAvg(
         min_available_clients=conf["num_clients"],
+        min_fit_clients=conf["num_clients"],
+        min_evaluate_clients=conf["num_clients"],
         on_fit_config_fn=get_on_fit_config_fn(conf["batch_size"], conf['local_epochs']),
         initial_parameters=parameters,
     )

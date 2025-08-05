@@ -1,7 +1,7 @@
 {
     "server_address": "127.0.0.1:8080",
     "num_rounds": 20,
-    "num_clients": 3,
+    "num_clients": 1,
     "batch_size": 32,
     "local_epochs": 1,
     "input_shape": 85,

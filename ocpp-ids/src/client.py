@@ -11,7 +11,6 @@ import shap
 import lime
 import lime.lime_tabular
 
-# --- (Assuming utils and dnn_model are in the same directory) ---
 from utils import evaluation_metrics, load_config
 from dnn_model import create_model
 
@@ -44,10 +43,21 @@ class ExplainableClient(fl.client.NumPyClient):
         self.normalize_data()
         
         self.eval_metrics_lst = []
-        # Use the number of unique classes from the label encoder
-        self.model = create_model(self.X_train.shape[1], len(self.label_encoder.classes_))
+        
+        num_classes = len(self.label_encoder.classes_)
+        if num_classes < 2:
+            raise ValueError(f"Error: Only one class found after preprocessing: {self.class_names}. "
+                             "Please check the 'normal_label_name' in the preprocess function "
+                             "and ensure it matches the label in your CSV file (e.g., 'Benign' vs 'BENIGN').")
+
+        self.model = create_model(self.X_train.shape[1], num_classes)
+        
         opt = tf.keras.optimizers.Adam(learning_rate=self.conf['learning_rate'], beta_1=0.99, beta_2=0.999, epsilon=1e-08)
-        self.model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+        
+        if num_classes == 2:
+            self.model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
+        else:
+            self.model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
         
         self.current_round = 0
 
@@ -55,7 +65,6 @@ class ExplainableClient(fl.client.NumPyClient):
     def _parse_config_identifiers(self):
         '''Decodes the combined client_id from config into a client number and dataset name.'''
         combined_id = self.conf['client_id']
-        
         client_number = combined_id // 10
         dataset_code = combined_id % 10
         
@@ -136,9 +145,13 @@ class ExplainableClient(fl.client.NumPyClient):
         loss, accuracy = self.model.evaluate(self.X_test, self.Y_test, verbose=0)
         
         predicted_test = self.model.predict(self.X_test, verbose=0)
-        predicted_classes = np.argmax(predicted_test, axis=1)
         
-        eval_metrics = evaluation_metrics(self.Y_test, predicted_classes, predicted_test)
+        if len(self.label_encoder.classes_) == 2:
+            predicted_classes = (predicted_test > 0.5).astype("int32")
+        else:
+            predicted_classes = np.argmax(predicted_test, axis=1)
+        
+        eval_metrics = evaluation_metrics(self.Y_test, predicted_classes, self.class_names)
         self.eval_metrics_lst.append(eval_metrics)
 
         self.save_metrics_to_csv(eval_metrics)
@@ -153,12 +166,10 @@ class ExplainableClient(fl.client.NumPyClient):
         
         return loss, len(self.X_test), {"accuracy": accuracy}
 
-    ## MODIFIED: Now uses the parsed client_number for the filename
     def calculate_and_save_shap(self, output_path):
         '''Calculates and saves SHAP values, data samples, and feature names.'''
         os.makedirs(output_path, exist_ok=True)
 
-        # ... (código do explainer e cálculo do shap_values continua igual) ...
         background_data = self.X_train[np.random.choice(self.X_train.shape[0], 100, replace=False)]
         explainer = shap.KernelExplainer(self.model.predict, background_data)
         
@@ -166,23 +177,24 @@ class ExplainableClient(fl.client.NumPyClient):
         data_to_explain = self.X_test[sample_indices]
         shap_values = explainer.shap_values(data_to_explain)
 
-        # 1. Salvar os valores SHAP (como antes)
         filename_shap = f'shap_values_client_{self.client_number}.npy'
         np.save(os.path.join(output_path, filename_shap), shap_values)
         print(f"SHAP values saved to {os.path.join(output_path, filename_shap)}")
 
-        # 2. Salvar os dados que foram explicados
         filename_data = f'shap_data_client_{self.client_number}.npy'
         np.save(os.path.join(output_path, filename_data), data_to_explain)
         print(f"SHAP data samples saved to {os.path.join(output_path, filename_data)}")
 
-        # 3. Salvar os nomes das features
         filename_features = f'shap_features_client_{self.client_number}.json'
         with open(os.path.join(output_path, filename_features), 'w') as f:
             json.dump(self.feature_names, f)
         print(f"SHAP feature names saved to {os.path.join(output_path, filename_features)}")
 
-    ## MODIFIED: Now uses the parsed client_number for the filename
+        filename_classes = f'shap_class_names_client_{self.client_number}.json'
+        with open(os.path.join(output_path, filename_classes), 'w') as f:
+            json.dump(self.class_names, f)
+        print(f"SHAP class names saved to {os.path.join(output_path, filename_classes)}")
+
     def calculate_and_save_lime(self, output_path):
         '''Calculates and saves LIME explanations for a subset of the test data.'''
         os.makedirs(output_path, exist_ok=True)
@@ -194,6 +206,11 @@ class ExplainableClient(fl.client.NumPyClient):
             mode='classification'
         )
 
+        def lime_predict_wrapper(data):
+            prob_attack = self.model.predict(data)
+            prob_normal = 1 - prob_attack
+            return np.hstack((prob_normal, prob_attack))
+
         num_samples_to_explain = min(5, self.X_test.shape[0])
         sample_indices = np.random.choice(self.X_test.shape[0], num_samples_to_explain, replace=False)
 
@@ -203,8 +220,9 @@ class ExplainableClient(fl.client.NumPyClient):
             
             explanation = explainer.explain_instance(
                 instance_to_explain,
-                self.model.predict,
-                num_features=len(self.feature_names)
+                lime_predict_wrapper,
+                num_features=len(self.feature_names),
+                labels=(0, 1)
             )
 
             filename = f'lime_explanation_client_{self.client_number}_instance_{i}.html'
@@ -216,14 +234,23 @@ def gen_client(args):
     client = ExplainableClient(args.config_path, args.xai)
     return client
 
+## MODIFIED: Corrected the normal_label_name to match the data
 def preprocess(data, feats_to_drop):
     '''
-    ## MODIFIED: Cleans data and also returns the list of feature names.
+    ## MODIFIED: Cleans data, converts labels to binary, and returns feature names.
     '''
     data = data.dropna(axis=0, how='any')
     label_name = 'Label' if 'Label' in data.columns else 'label'
     
-    Y = data[[label_name]]
+    print(f"DEBUG: Unique labels found in raw data: {data[label_name].unique()}")
+    
+    Y = data[[label_name]].copy()
+
+    normal_label_name = 'normal' 
+    
+    Y[label_name] = np.where(Y[label_name].str.strip() == normal_label_name, 'Normal', 'Attack')
+    # ---------------------------------------------
+    
     X_df = data.drop(feats_to_drop + [label_name], axis=1)
 
     feature_names = X_df.columns.tolist()
@@ -245,25 +272,27 @@ def main():
     
     args = parser.parse_args()
     
-    tf.config.set_visible_devices([], 'GPU')
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
     
     client = gen_client(args)
     
     fl.client.start_numpy_client(
-        server_address=client.conf['server_address'],
+        server_address=client.conf.get("server_address", "127.0.0.1:8080"),
         client=client,
     )
     
-    path = client.conf['saved_model_path']
-    os.makedirs(path, exist_ok=True)
+    path = client.conf.get('saved_model_path')
+    if path:
+        os.makedirs(path, exist_ok=True)
 
-    experiment_type = client.conf.get('type', 'unknown')
-    client_number = client.client_number
-    model_filename = f"model_{experiment_type}_{client_number}.h5"
+        experiment_type = client.conf.get('type', 'unknown')
+        client_number = client.client_number
+        dataset_name = client.dataset_name
+        model_filename = f"model_{dataset_name}_{experiment_type}_client_{client_number}.h5"
 
-    full_path = os.path.join(path, model_filename)
-    client.model.save(full_path)
-    print(f"\nFinal model saved to {full_path}")
+        full_path = os.path.join(path, model_filename)
+        client.model.save(full_path)
+        print(f"\nFinal model saved to {full_path}")
     
 if __name__ == "__main__":
     main()

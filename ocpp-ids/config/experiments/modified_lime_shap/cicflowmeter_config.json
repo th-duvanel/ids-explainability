@@ -1,0 +1,19 @@
+{
+    "client_id": 1,
+    "type": "modified_lime_shap",
+    "dataset_path": "data/cicflowmeter",
+    "saved_model_path": "results/cicflowmeter/modified_lime_shap",
+    "shap_output_path": "results/cicflowmeter/modified_lime_shap/shap",
+    "lime_output_path": "results/cicflowmeter/modified_lime_shap/lime",
+    "results_output_path": "results/cicflowmeter/modified_lime_shap",
+    "server_address": "127.0.0.1:8080",
+    "learning_rate": 0.002,
+    "features_to_drop": ["Flow ID","Src IP","Dst IP","Src Port", "Dst Port", "Protocol", "Timestamp", "CWR Flag Count", "Label",
+                         "Fwd URG Flags",
+                         "Bwd URG Flags",
+                         "ECE Flag Count",
+                         "URG Flag Count",
+                         "Bwd RST Flags",
+                         "Subflow Fwd Packets"
+                        ]
+}

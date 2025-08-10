@@ -2,6 +2,7 @@ import flwr as fl
 from dnn_model import create_model
 import argparse
 from utils import load_config
+import tensorflow as tf
 
 def get_on_fit_config_fn(batch_size, local_epochs):
     ''' Returns a functions which returns the server config file,
@@ -70,8 +71,10 @@ def main():
     # model architecture
     model = create_model(conf['input_shape'], conf['num_classes'])
     
-    # compile model
-    model.compile(loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+    if conf['num_classes'] == 2:
+        model.compile(loss='binary_crossentropy', metrics=['accuracy'])
+    else:
+        model.compile(loss='sparse_categorical_crossentropy', metrics=['accuracy'])
     
     # get model weights
     weights = model.get_weights()

@@ -1,0 +1,8 @@
+{
+    "num_rounds": 30,
+    "experiment_type": "baseline",
+    "dataset_name": "cicflowmeter",
+    "server_address": "127.0.0.1:8080",
+    "learning_rate": 0.002,
+    "features_to_drop": ["Flow ID","Src IP","Dst IP","Src Port", "Dst Port", "Protocol", "Timestamp", "CWR Flag Count", "Label"]
+}

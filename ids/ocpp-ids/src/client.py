@@ -11,7 +11,42 @@ import shap
 import lime
 import lime.lime_tabular
 
-from utils import evaluation_metrics, load_config
+from utils import  def evaluate(self, parameters, config):
+        '''
+        Evaluates the model and runs XAI methods ONLY on the final round.
+        '''
+        self.current_round += 1
+        
+        self.model.set_weights(parameters)
+        print(f"\nEvaluation - {self.dataset_name}, Round {self.current_round}")
+        loss, accuracy = self.model.evaluate(self.X_test, self.Y_test, verbose=0)
+        
+        predicted_test = self.model.predict(self.X_test, verbose=0)
+        
+        if len(self.label_encoder.classes_) == 2:
+            predicted_classes = (predicted_test > 0.5).astype("int32")
+        else:
+            predicted_classes = np.argmax(predicted_test, axis=1)
+        
+        eval_metrics = evaluation_metrics(self.Y_test, predicted_classes, self.class_names)
+        self.eval_metrics_lst.append(eval_metrics)
+
+        self.save_metrics_to_csv(eval_metrics)
+
+        is_last_round = self.current_round == self.conf.get("num_rounds")
+
+        if is_last_round:
+            if self.xai_method in ['shap', 'both']:
+                print(f"\n--- FINAL ROUND: Calculating SHAP values... ---")
+                self.calculate_and_save_shap(os.path.join('results', self.dataset_name, self.experiment_type, 'shap'))
+            
+            if self.xai_method in ['lime', 'both']:
+                print(f"\n--- FINAL ROUND: Calculating LIME explanations... ---")
+                self.calculate_and_save_lime(os.path.join('results', self.dataset_name, self.experiment_type, 'lime'))
+        # ----------------------------------------
+        
+        return loss, len(self.X_test), {"accuracy": accuracy}
+trics, load_config
 from dnn_model import create_model
 
 # --- ADDED: Imports for saving metrics ---

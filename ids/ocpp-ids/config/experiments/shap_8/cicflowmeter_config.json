@@ -1,0 +1,26 @@
+{
+    "client_id": 11,
+    "num_rounds": 30,
+    "experiment_type": "shap_8",
+    "dataset_name": "cicflowmeter",
+    "server_address": "127.0.0.1:8080",
+    "learning_rate": 0.002,
+    "features_to_drop": [
+        "Flow ID",
+        "Src IP",
+        "Dst IP",
+        "Src Port",
+        "Dst Port",
+        "Protocol",
+        "Timestamp",
+        "Label",
+        "Bwd RST Flags",
+        "Subflow Fwd Packets",
+        "Bwd IAT Min",
+        "Bwd Bulk Rate Avg",
+        "Bwd Bytes/Bulk Avg",
+        "Fwd URG Flags",
+        "Bwd URG Flags",
+        "Fwd RST Flags"
+    ]
+}

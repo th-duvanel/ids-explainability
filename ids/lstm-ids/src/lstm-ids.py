@@ -27,8 +27,15 @@ parser.add_argument(
     required=True, 
     help="Nome do experimento, usado para salvar os resultados."
 )
+parser.add_argument(
+    '--type',
+    type=str, 
+    required=True, 
+    help="Tipos de explicabilidade."
+)
 args = parser.parse_args()
 experiment_name = args.exp
+explainability_exps = args.type
 
 results_dir = os.path.join("../results", experiment_name)
 model_save_path = os.path.join(results_dir, "model.h5")
@@ -159,49 +166,50 @@ print(f"F1-Score (Attack):   {metrics['Attack']['f1-score']:.4f}")
 print(f"ROC-AUC:    {metrics['ROC-AUC']:.4f}")
 print("---------------------------------")
 
+if explainability_exps in ['shap', 'both']:
+    pr.prGreen("Calculando e salvando valores SHAP...")
 
-pr.prGreen("Calculando e salvando valores SHAP...")
-
-#shap_dir = os.path.join(results_dir, "shap")
-#os.makedirs(shap_dir, exist_ok=True)
-#
-#try:
-#    shap_values, expected_value, data_batch = ids_model.explain_with_shap(
-#        train_loader, 
-#        test_loader
-#    )
-#    
-#    np.save(os.path.join(shap_dir, "shap_values.npy"), shap_values)
-#    np.save(os.path.join(shap_dir, "expected_value.npy"), expected_value)
-#    np.save(os.path.join(shap_dir, "data_batch.npy"), data_batch.cpu().numpy())
-#    
-#    print(f"Valores SHAP, valores esperados e lote de dados salvos em: {shap_dir}")
-#    
-#except Exception as e:
-#    pr.prRed(f"Erro ao calcular ou salvar SHAP: {e}")
-
-pr.prGreen("Calculando e salvando explicação LIME...")
-lime_dir = os.path.join(results_dir, "lime")
-os.makedirs(lime_dir, exist_ok=True)
-
-try:
-    # Explicar a primeira amostra (index=0) do primeiro lote de teste
-    # Pedir as 20 features mais importantes
-    lime_explanation = ids_model.explain_with_lime(
-        train_loader,
-        test_loader,
-        instance_index=0,
-        num_features=20
-    )
+    shap_dir = os.path.join(results_dir, "shap")
+    os.makedirs(shap_dir, exist_ok=True)
     
-    # Salvar a explicação como um arquivo HTML
-    lime_save_path = os.path.join(lime_dir, "lime_explanation_instance_0.html")
-    lime_explanation.save_to_file(lime_save_path)
-    
-    print(f"Explicação LIME salva em: {lime_save_path}")
+    try:
+        shap_values, expected_value, data_batch = ids_model.explain_with_shap(
+            train_loader, 
+            test_loader
+        )
+        
+        np.save(os.path.join(shap_dir, "shap_values.npy"), shap_values)
+        np.save(os.path.join(shap_dir, "expected_value.npy"), expected_value)
+        np.save(os.path.join(shap_dir, "data_batch.npy"), data_batch.cpu().numpy())
+        
+        print(f"Valores SHAP, valores esperados e lote de dados salvos em: {shap_dir}")
+        
+    except Exception as e:
+        pr.prRed(f"Erro ao calcular ou salvar SHAP: {e}")
 
-except Exception as e:
-    pr.prRed(f"Erro ao calcular ou salvar LIME: {e}")
+if explainability_exps in ['lime', 'both']:
+    pr.prGreen("Calculando e salvando explicação LIME...")
+    lime_dir = os.path.join(results_dir, "lime")
+    os.makedirs(lime_dir, exist_ok=True)
+
+    try:
+        # Explicar a primeira amostra (index=0) do primeiro lote de teste
+        # Pedir as 20 features mais importantes
+        lime_explanation = ids_model.explain_with_lime(
+            train_loader,
+            test_loader,
+            instance_index=0,
+            num_features=20
+        )
+        
+        # Salvar a explicação como um arquivo HTML
+        lime_save_path = os.path.join(lime_dir, "lime_explanation_instance_0.html")
+        lime_explanation.save_to_file(lime_save_path)
+        
+        print(f"Explicação LIME salva em: {lime_save_path}")
+
+    except Exception as e:
+        pr.prRed(f"Erro ao calcular ou salvar LIME: {e}")
 
 
 results_data = {
